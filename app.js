@@ -8,7 +8,7 @@ try{let loc=coords;if(!loc){const g=await fetch("https://nominatim.openstreetmap
 const query='[out:json][timeout:15];(node["amenity"="food_bank"](around:16093,'+loc.lat+','+loc.lon+');way["amenity"="food_bank"](around:16093,'+loc.lat+','+loc.lon+');node["social_facility"="food_bank"](around:16093,'+loc.lat+','+loc.lon+');way["social_facility"="food_bank"](around:16093,'+loc.lat+','+loc.lon+'););out center tags;';
 const controller=new AbortController();const timer=setTimeout(()=>controller.abort(),22000);
 const r=await fetch("/api/pantries?lat="+encodeURIComponent(loc.lat)+"&lon="+encodeURIComponent(loc.lon),{signal:controller.signal});clearTimeout(timer);
-if(!r.ok)throw Error("pantry service "+r.status);const d=await r.json();render((d.elements||[]).concat((d.seeds||[]).map((z,i)=>({id:"seed"+i,tags:{name:z.name,"addr:full":z.address,phone:z.phone||"",opening_hours:z.hours||"",website:z.sourceUrl||"",source:z.source||"",confidence:z.confidence||""}}))),loc)
+if(!r.ok)throw Error("pantry service "+r.status);const d=await r.json();render((d.elements||[]).concat((d.seeds||[]).map((z,i)=>({id:"seed"+i,tags:{name:z.name,"addr:full":z.address,phone:z.phone||"",opening_hours:z.hours||"",website:z.sourceUrl||"",source:z.source||"",confidence:z.confidence||""}}))),loc)}
 catch(e){say("Live search failed. Goblin refuses to invent pantry hours. Try again shortly.")}};
 function render(items,loc){const uniq=[...new Map(items.map(x=>[(x.tags?.name||"")+"|"+(x.tags?.["addr:street"]||x.id),x])).values()];if(!uniq.length)return say("No mapped food banks found within about 10 miles. This does not mean none exist — try 211 or a local food bank directory.");
 $("#state").textContent=uniq.length+" mapped food resources found. Verify hours before traveling.";
