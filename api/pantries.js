@@ -16,7 +16,7 @@ export default async function handler(req,res){
  res.setHeader("Cache-Control","s-maxage=300, stale-while-revalidate=900");
  const lat=Number(req.query.lat),lon=Number(req.query.lon);
  if(!Number.isFinite(lat)||!Number.isFinite(lon))return res.status(400).json({error:"Goblin needs valid coordinates."});
- const q='[out:json][timeout:5];(node["amenity"="food_bank"](around:12000,'+lat+','+lon+');node["social_facility"="food_bank"](around:12000,'+lat+','+lon+'););out tags center;';
+ const q='[out:json][timeout:6];(nwr["amenity"="food_bank"](around:25000,'+lat+','+lon+');nwr["amenity"="social_facility"]["social_facility"="food_bank"](around:25000,'+lat+','+lon+');nwr["social_facility"="food_bank"](around:25000,'+lat+','+lon+');nwr["social_facility"="soup_kitchen"](around:25000,'+lat+','+lon+');nwr["amenity"="food_sharing"](around:25000,'+lat+','+lon+'););out center tags;';
  const jobs=OVERPASS.map(async url=>{try{const r=await timeoutFetch(url,{method:"POST",headers:{"Content-Type":"application/x-www-form-urlencoded;charset=UTF-8","User-Agent":"PantryGoblin/1.1"},body:"data="+encodeURIComponent(q)});if(!r.ok)throw Error("HTTP "+r.status);return (await r.json()).elements||[]}catch(e){return []}});
  const settled=await Promise.all(jobs);const elements=settled.flat();
  const haywardKm=6371*2*Math.asin(Math.sqrt(Math.sin(((lat-37.6688)*Math.PI/180)/2)**2+Math.cos(lat*Math.PI/180)*Math.cos(37.6688*Math.PI/180)*Math.sin(((lon+122.0808)*Math.PI/180)/2)**2));
