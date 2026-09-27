@@ -6,7 +6,9 @@ $("#locate").onclick=()=>navigator.geolocation?navigator.geolocation.getCurrentP
 $("#hunt").onclick=async()=>{const q=$("#where").value.trim();if(!q&&!coords)return say("Goblin needs a location first.");say("Searching public food-resource listings…");$("#results").innerHTML="";
 try{let loc=coords;if(!loc){const g=await fetch("https://nominatim.openstreetmap.org/search?format=json&limit=1&q="+encodeURIComponent(q),{headers:{"Accept":"application/json"}}).then(r=>r.json());if(!g.length)throw Error("location");loc={lat:+g[0].lat,lon:+g[0].lon}}
 const query='[out:json][timeout:15];(node["amenity"="food_bank"](around:16093,'+loc.lat+','+loc.lon+');way["amenity"="food_bank"](around:16093,'+loc.lat+','+loc.lon+');node["social_facility"="food_bank"](around:16093,'+loc.lat+','+loc.lon+');way["social_facility"="food_bank"](around:16093,'+loc.lat+','+loc.lon+'););out center tags;';
-const d=await fetch("https://overpass-api.de/api/interpreter",{method:"POST",body:query}).then(r=>r.json());render(d.elements,loc)}
+let d=null;const endpoints=["https://overpass.kumi.systems/api/interpreter","https://overpass-api.de/api/interpreter"];
+for(const endpoint of endpoints){try{const r=await fetch(endpoint,{method:"POST",headers:{"Content-Type":"application/x-www-form-urlencoded;charset=UTF-8"},body:"data="+encodeURIComponent(query)});if(!r.ok)throw Error("HTTP "+r.status);d=await r.json();break}catch(err){console.warn("Goblin source failed",endpoint,err)}}
+if(!d)throw Error("all pantry sources failed");render(d.elements||[],loc)}
 catch(e){say("Live search failed. Goblin refuses to invent pantry hours. Try again shortly.")}};
 function render(items,loc){const uniq=[...new Map(items.map(x=>[(x.tags?.name||"")+"|"+(x.tags?.["addr:street"]||x.id),x])).values()];if(!uniq.length)return say("No mapped food banks found within about 10 miles. This does not mean none exist — try 211 or a local food bank directory.");
 $("#state").textContent=uniq.length+" mapped food resources found. Verify hours before traveling.";
