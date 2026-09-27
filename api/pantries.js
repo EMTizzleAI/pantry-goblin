@@ -19,5 +19,5 @@ export default async function handler(req,res){
  const q='[out:json][timeout:5];(node["amenity"="food_bank"](around:12000,'+lat+','+lon+');node["social_facility"="food_bank"](around:12000,'+lat+','+lon+'););out tags center;';
  const jobs=OVERPASS.map(async url=>{try{const r=await timeoutFetch(url,{method:"POST",headers:{"Content-Type":"application/x-www-form-urlencoded;charset=UTF-8","User-Agent":"PantryGoblin/1.1"},body:"data="+encodeURIComponent(q)});if(!r.ok)throw Error("HTTP "+r.status);return (await r.json()).elements||[]}catch(e){return []}});
  const settled=await Promise.all(jobs);const elements=settled.flat();
- return res.status(200).json({elements,seeds:SEEDS,retrievedAt:new Date().toISOString(),note:"Official Hayward/Alameda sources plus best-effort mapped resources. Verify schedules before travel."});
+ const haywardKm=6371*2*Math.asin(Math.sqrt(Math.sin(((lat-37.6688)*Math.PI/180)/2)**2+Math.cos(lat*Math.PI/180)*Math.cos(37.6688*Math.PI/180)*Math.sin(((lon+122.0808)*Math.PI/180)/2)**2));\n const seeds=haywardKm<=30?SEEDS:[];\n return res.status(200).json({elements,seeds,retrievedAt:new Date().toISOString(),note:seeds.length?"Official Hayward/Alameda sources plus best-effort mapped resources. Verify schedules before travel.":"Best-effort mapped resources. Local Alameda fallback suppressed outside its service area."});
 }
