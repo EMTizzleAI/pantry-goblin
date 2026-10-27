@@ -1,0 +1,52 @@
+name: Co-Pilot live connection smoke test
+on:
+  push:
+    paths:
+      - '.github/workflows/copilot-smoke.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 4
+    steps:
+      - name: Check deployed Co-Pilot health endpoint
+        shell: bash
+        run: |
+          set -euo pipefail
+          url="https://pantry-goblin.vercel.app/api/dropzone-copilot"
+          for attempt in $(seq 1 12); do
+            code=$(curl -sSL --max-time 10 -w '%{http_code}' -o /tmp/copilot-health.json "$url" || true)
+            if [ "$code" = "200" ]; then
+              echo "Health endpoint responds with HTTP 200"
+              break
+            fi
+            echo "API not ready yet (status: $code, attempt $attempt/12)"
+            sleep 8
+          done
+          node - <<'NODE'
+          const fs=require('fs');
+          const raw=fs.readFileSync('/tmp/copilot-health.json','utf8');
+          let data;try{data=JSON.parse(raw)}catch{throw Error('Health endpoint did not return JSON')}
+          if(data.service!=='Drop Zone Co-Pilot')throw Error('Co-Pilot API not deployed');
+          console.log('Co-Pilot route live; model:',data.model)
+          NODE
+      - name: Send one harmless test message through the generative model
+        shell: bash
+        run: |
+          set -euo pipefail
+          code=$(curl -sSL --max-time 35 -w '%{http_code}' -o /tmp/copilot-reply.json             -H 'Content-Type: application/json'             -H 'Origin: https://emtizzleai.github.io'             --data '{"message":"Recommend one uplifting song and a gentle movement idea.","history":[]}'             https://pantry-goblin.vercel.app/api/dropzone-copilot || true)
+          echo "Model API HTTP status: $code"
+          node - <<'NODE'
+          const fs=require('fs');
+          let data;try{data=JSON.parse(fs.readFileSync('/tmp/copilot-reply.json','utf8'))}catch{throw Error('No valid JSON response')}
+          if(data.mode!=='live'){
+            console.log('Model not active:',String(data.error||data.mode||'unknown').slice(0,200));
+            process.exit(1);
+          }
+          console.log('LIVE GENERATION CONFIRMED. Model:',data.model);
+          console.log('Reply length:',data.reply?.length||0);
+          NODE
