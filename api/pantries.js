@@ -58,7 +58,7 @@ export default async function handler(req,res){
     return res.status(400).json({error:"Enter a valid location (latitude/longitude)."});
   }
   const requested=Number(req.query.radius);
-  const radiusKm=requested===30?30:16; // Only expand when the user explicitly asks.
+  const radiusKm=requested===30?30:12; // Only expand when the user explicitly asks.
   const nearFremont=distanceKm(lat,lon,FREMONT_CENTER.lat,FREMONT_CENTER.lon)<=9;
   const seeds=nearFremont?FREMONT_RESOURCES:[];
 
