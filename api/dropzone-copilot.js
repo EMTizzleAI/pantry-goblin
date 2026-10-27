@@ -85,11 +85,37 @@ export default async function handler(req,res){
       })
     });
     if(!response.ok){
-      // Never leak the upstream body, which could contain account-specific details.
+      // Diagnostic precision matters: a 403 does NOT prove a particular
+      // model is blocked. It can be a team-level AI Gateway restriction,
+      // customer-verification requirement, or a provider permission error.
+      // Expose only a known-safe error type, never raw provider responses.
+      let upstreamType="";
+      try{
+        const failure=await response.json();
+        const type=String(failure?.error?.type||failure?.error?.code||failure?.code||"").toLowerCase();
+        if(/^[a-z][a-z0-9_]{0,80}$/.test(type))upstreamType=type;
+      }catch(_){}
       const status=response.status;
-      const code=status===401?"GATEWAY_AUTH_REJECTED":status===402?"GATEWAY_CREDITS_OR_BUDGET":status===403?"GATEWAY_ACCESS_BLOCKED":status===429?"GATEWAY_RATE_LIMIT":"GATEWAY_ERROR";
-      const explanation=status===401?"The AI service rejected the server credential.":status===402?"The AI account needs credits or hit a spending limit.":status===403?"The AI account is not permitted to use this model.":status===429?"The model is rate-limited.":"The AI model could not respond (HTTP "+status+").";
-      return reply(res,503,{code,error:explanation+" The Co-Pilot is using offline responses."});
+      const exact=upstreamType==="customer_verification_required"
+        ?{code:"CUSTOMER_VERIFICATION_REQUIRED",message:"Vercel requires account/payment-method verification before AI Gateway can run this free model. Do not purchase credits without checking the account first."}
+        :upstreamType==="access_denied"
+        ?{code:"GATEWAY_TEAM_ACCESS_DENIED",message:"AI Gateway returned access_denied (HTTP 403). This may be a team/account restriction, not a problem with the specific model. Check Vercel AI Gateway access or contact Vercel support."}
+        :upstreamType==="model_not_found"
+        ?{code:"MODEL_NOT_FOUND",message:"The requested free model is not available to this account or has been removed."}
+        :upstreamType==="quota_for_entity_exceeded"
+        ?{code:"GATEWAY_BUDGET_EXCEEDED",message:"The AI Gateway budget or quota has been reached."}
+        :upstreamType==="insufficient_funds"
+        ?{code:"GATEWAY_NO_CREDITS",message:"The AI Gateway account does not have sufficient credits, even for this route."}
+        :status===401
+        ?{code:"GATEWAY_AUTH_REJECTED",message:"AI Gateway rejected the server credential."}
+        :status===402
+        ?{code:"GATEWAY_CREDITS_OR_BUDGET",message:"AI Gateway returned HTTP 402: credits, verification, or budget need attention."}
+        :status===403
+        ?{code:"GATEWAY_ACCESS_BLOCKED",message:"AI Gateway returned HTTP 403: access is denied. This does not prove the model itself is blocked; it may be account or team eligibility."}
+        :status===429
+        ?{code:"GATEWAY_RATE_LIMIT",message:"AI Gateway returned HTTP 429: rate limit reached."}
+        :{code:"GATEWAY_ERROR",message:"The model request failed (HTTP "+status+")."};
+      return reply(res,503,{code:exact.code,error:exact.message+" Co-Pilot switched to offline replies."});
     }
     const data=await response.json();
     let generated=data?.choices?.[0]?.message?.content;
