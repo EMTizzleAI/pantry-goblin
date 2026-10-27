@@ -30,3 +30,7 @@ footer{text-align:center;color:#6e8773;font-size:11px;margin:35px 0}
 .directories h2{font-size:17px;margin:0 0 8px}.directories p{font-size:13px;color:#b7cbbb;line-height:1.5}
 .directories small{display:block;color:#a1b3a5;margin-top:14px;font-size:11px;line-height:1.5}
 @media(max-width:500px){header{align-items:flex-start}.status{max-width:100px}.goblin{font-size:58px}}
+
+.location-tip{color:#b2cabb;font-size:12px;line-height:1.5;margin:10px 4px 0}
+.location-tip b{color:#e3ffe5}
+.map-fallback{display:inline-block;margin:12px 0;padding:10px 12px;border:1px solid #79ff45;border-radius:10px;color:#79ff45;text-decoration:none;font-weight:800;font-family:system-ui}
