@@ -38,16 +38,23 @@ function clientAllowed(req,res){
 export default async function handler(req,res){
   if(!clientAllowed(req,res))return reply(res,403,{error:"Origin not permitted."});
   if(req.method==="OPTIONS")return res.status(204).end();
-  if(req.method==="GET")return reply(res,200,{
-    service:"Drop Zone Co-Pilot",
-    mode:"free-model",
-    enabled:true,
-    model:MODEL,
-    description:"Public beta. No stored transcript. Nearby short-term context only."
-  });
+  if(req.method==="GET"){
+    const credentialsPresent=Boolean(process.env.AI_GATEWAY_API_KEY||process.env.VERCEL_OIDC_TOKEN||req.headers["x-vercel-oidc-token"]);
+    return reply(res,200,{
+      service:"Drop Zone Co-Pilot",
+      mode:"free-model",
+      configured:credentialsPresent,
+      model:MODEL,
+      connection:credentialsPresent?"credentials-present-unverified":"missing-ai-authentication",
+      description:"Health check does not make a model request. Actual generation requires a successful POST."
+    });
+  }
   if(req.method!=="POST")return reply(res,405,{error:"POST only."});
   const auth=process.env.AI_GATEWAY_API_KEY||process.env.VERCEL_OIDC_TOKEN||req.headers["x-vercel-oidc-token"];
-  if(!auth)return reply(res,503,{error:"Co-Pilot's AI connection isn't authorized yet. Offline encouragement remains available."});
+  if(!auth)return reply(res,503,{
+    code:"AUTH_NOT_CONFIGURED",
+    error:"The server has no AI Gateway authentication configured. The Co-Pilot is using prewritten offline replies."
+  });
   const body=req.body||{};
   if(typeof body!=="object"||Array.isArray(body))return reply(res,400,{error:"Invalid request."});
   const raw=String(body.message||"").trim();
@@ -77,14 +84,20 @@ export default async function handler(req,res){
         max_tokens:440,temperature:0.85
       })
     });
-    if(!response.ok)return reply(res,503,{error:"The language model couldn't respond right now ("+response.status+"). Offline support is still available."});
+    if(!response.ok){
+      // Never leak the upstream body, which could contain account-specific details.
+      const status=response.status;
+      const code=status===401?"GATEWAY_AUTH_REJECTED":status===402?"GATEWAY_CREDITS_OR_BUDGET":status===403?"GATEWAY_ACCESS_BLOCKED":status===429?"GATEWAY_RATE_LIMIT":"GATEWAY_ERROR";
+      const explanation=status===401?"The AI service rejected the server credential.":status===402?"The AI account needs credits or hit a spending limit.":status===403?"The AI account is not permitted to use this model.":status===429?"The model is rate-limited.":"The AI model could not respond (HTTP "+status+").";
+      return reply(res,503,{code,error:explanation+" The Co-Pilot is using offline responses."});
+    }
     const data=await response.json();
     let generated=data?.choices?.[0]?.message?.content;
     if(Array.isArray(generated))generated=generated.filter(x=>x.type==="text").map(x=>x.text).join("\n");
     if(typeof generated!=="string"||!generated.trim())
       return reply(res,503,{error:"No generated reply was returned; offline support is available."});
     return reply(res,200,{reply:generated.slice(0,2400).trim(),mode:"live",model:MODEL});
-  }catch(_){
-    return reply(res,503,{error:"The AI service timed out or is offline. Your Co-Pilot can still offer prewritten encouragement."});
+  }catch(err){
+    return reply(res,503,{code:"GATEWAY_UNREACHABLE",error:"The model service timed out or could not be reached. The Co-Pilot is using offline responses."});
   }finally{clearTimeout(timer)}
 }
