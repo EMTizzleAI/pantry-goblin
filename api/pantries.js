@@ -1,25 +1,114 @@
-const OVERPASS=["https://overpass.kumi.systems/api/interpreter","https://overpass-api.de/api/interpreter"];
-const SEEDS=[
-{name:"Hayward Seventh Day Adventist",address:"26400 Gading Road, Hayward, CA",hours:"Sunday",source:"City of Hayward",sourceUrl:"https://www.hayward-ca.gov/services/city-services/food-access-pantries",confidence:"official"},
-{name:"5 Sikh Seva: Food Truck @ Eden Greenway Park",address:"25625 Cypress Avenue, Hayward, CA",hours:"Monday",source:"City of Hayward",sourceUrl:"https://www.hayward-ca.gov/services/city-services/food-access-pantries",confidence:"official"},
-{name:"United Smith Memorial CME Church",address:"28105 Mission Boulevard, Hayward, CA",hours:"2nd & 4th Saturday",source:"City of Hayward",sourceUrl:"https://www.hayward-ca.gov/services/city-services/food-access-pantries",confidence:"official"},
-{name:"The Peace Haven Freedom Store",address:"1063 A Street, Hayward, CA",hours:"Tuesday & Friday",source:"City of Hayward",sourceUrl:"https://www.hayward-ca.gov/services/city-services/food-access-pantries",confidence:"official"},
-{name:"Salvation Army - Hayward",address:"430 A Street, Hayward, CA",phone:"510-581-6444",hours:"Food pantry Tuesday & Thursday",source:"City of Hayward / 211 Alameda",sourceUrl:"https://211alamedacounty.org/resources/food-programs-and-usda-commodity-38904914/",confidence:"official"},
-{name:"4C's of Alameda County - Hayward",address:"22351 City Center Drive, Hayward, CA",phone:"510-736-0024",hours:"1st Thursday, 1pm–3pm",source:"Alameda County",sourceUrl:"https://acgov.org/cda/get-help.htm",confidence:"official"},
-{name:"Church of the Cross",address:"355 A Street, Hayward, CA",phone:"510-581-5522",hours:"Tuesday, 10am–12pm",source:"Alameda County",sourceUrl:"https://acgov.org/cda/get-help.htm",confidence:"official"},
-{name:"Comida Para Cherryland",address:"21455 Birch Street, Hayward, CA",phone:"510-582-9533",hours:"2nd & 4th Wednesday, 1:30pm",source:"Alameda County",sourceUrl:"https://acgov.org/cda/get-help.htm",confidence:"official"},
-{name:"Community of Grace Church",address:"380 Elmhurst Street, Hayward, CA",phone:"510-783-8062",hours:"Wednesday, 11am–12pm; call for appointment; bring ID",source:"Alameda County",sourceUrl:"https://acgov.org/cda/get-help.htm",confidence:"official"},
-{name:"Alameda County Community Food Bank",address:"Alameda County, CA",phone:"510-635-3663",hours:"Referral line Mon–Fri, 9am–4pm",source:"211 Alameda County",sourceUrl:"https://211alamedacounty.org/resources/food-bank-services-38905455/",confidence:"directory"}
+// Pantry Goblin: live location-based discovery + geographically gated official listings.
+// Never insert a city's fallback pantries into another city's search results.
+const OVERPASS = [
+  "https://overpass.kumi.systems/api/interpreter",
+  "https://overpass-api.de/api/interpreter"
 ];
-function timeoutFetch(url,opt={},ms=6500){const c=new AbortController();const t=setTimeout(()=>c.abort(),ms);return fetch(url,{...opt,signal:c.signal}).finally(()=>clearTimeout(t))}
+
+// These are NOT a national database. Each listing is shown only near Fremont;
+// all other locations use their own map coordinates and nationwide directories.
+const FREMONT_CENTER = {lat:37.5485, lon:-121.9886};
+const FREMONT_RESOURCES = [
+  {
+    name:"Tri-City Volunteers Food Bank",
+    address:"37350 Joseph Street, Fremont, CA 94536",
+    phone:"510-793-4583",
+    hours:"Walk-up Mon–Thu 10am–2pm; Friday drive-through 10am–11:30am. Check holiday closures.",
+    source:"TCV Food Bank",
+    sourceUrl:"https://tcvfoodbank.org/food/",
+    confidence:"provider listing"
+  },
+  {
+    name:"Salaam Food Pantry",
+    address:"4080 Bay Street, Fremont, CA 94538",
+    phone:"510-519-7250",
+    hours:"Call for current food pickup times and appointment requirements.",
+    source:"Salaam Food Pantry / 211 Alameda",
+    sourceUrl:"https://salaamfoodpantry.org/contact",
+    confidence:"provider listing"
+  },
+  {
+    name:"Fremont Family Resource Center — TCV mobile food distribution",
+    address:"39155 Liberty Street, Fremont, CA 94538",
+    hours:"1st and 3rd Wednesday, around 10:30–11:30am; verify before traveling.",
+    source:"City of Fremont",
+    sourceUrl:"https://www.fremont.gov/government/departments/human-services/fremont-family-resource-center/food-events",
+    confidence:"city listing"
+  }
+];
+
+function distanceKm(a,b,c,d){
+  const r=Math.PI/180, x=(c-a)*r, y=(d-b)*r;
+  const z=Math.sin(x/2)**2+Math.cos(a*r)*Math.cos(c*r)*Math.sin(y/2)**2;
+  return 6371*2*Math.atan2(Math.sqrt(z),Math.sqrt(1-z));
+}
+async function timeoutFetch(url,options,ms=9500){
+  const controller=new AbortController();
+  const timer=setTimeout(()=>controller.abort(),ms);
+  try{return await fetch(url,{...options,signal:controller.signal})}
+  finally{clearTimeout(timer)}
+}
+
 export default async function handler(req,res){
- res.setHeader("Cache-Control","s-maxage=300, stale-while-revalidate=900");
- const lat=Number(req.query.lat),lon=Number(req.query.lon);
- if(!Number.isFinite(lat)||!Number.isFinite(lon))return res.status(400).json({error:"Goblin needs valid coordinates."});
- const q='[out:json][timeout:6];(nwr["amenity"="food_bank"](around:25000,'+lat+','+lon+');nwr["amenity"="social_facility"]["social_facility"="food_bank"](around:25000,'+lat+','+lon+');nwr["social_facility"="food_bank"](around:25000,'+lat+','+lon+');nwr["social_facility"="soup_kitchen"](around:25000,'+lat+','+lon+');nwr["amenity"="food_sharing"](around:25000,'+lat+','+lon+'););out center tags;';
- const jobs=OVERPASS.map(async url=>{try{const r=await timeoutFetch(url,{method:"POST",headers:{"Content-Type":"application/x-www-form-urlencoded;charset=UTF-8","User-Agent":"PantryGoblin/1.1"},body:"data="+encodeURIComponent(q)});if(!r.ok)throw Error("HTTP "+r.status);return (await r.json()).elements||[]}catch(e){return []}});
- const settled=await Promise.all(jobs);const elements=settled.flat();
- const haywardKm=6371*2*Math.asin(Math.sqrt(Math.sin(((lat-37.6688)*Math.PI/180)/2)**2+Math.cos(lat*Math.PI/180)*Math.cos(37.6688*Math.PI/180)*Math.sin(((lon+122.0808)*Math.PI/180)/2)**2));
- const seeds=haywardKm<=30?SEEDS:[];
- return res.status(200).json({elements,seeds,retrievedAt:new Date().toISOString(),note:seeds.length?"Official Hayward/Alameda sources plus best-effort mapped resources. Verify schedules before travel.":"Best-effort mapped resources. Local Alameda fallback suppressed outside its service area."});
+  res.setHeader("Cache-Control","s-maxage=300, stale-while-revalidate=600");
+  if(req.method!=="GET")return res.status(405).json({error:"Use GET."});
+  const lat=Number(req.query.lat), lon=Number(req.query.lon);
+  if(!Number.isFinite(lat)||!Number.isFinite(lon)||Math.abs(lat)>90||Math.abs(lon)>180 ||
+     req.query.lat===undefined||req.query.lon===undefined){
+    return res.status(400).json({error:"Enter a valid location (latitude/longitude)."});
+  }
+  const requested=Number(req.query.radius);
+  const radiusKm=requested===30?30:16; // Only expand when the user explicitly asks.
+  const nearFremont=distanceKm(lat,lon,FREMONT_CENTER.lat,FREMONT_CENTER.lon)<=9;
+  const seeds=nearFremont?FREMONT_RESOURCES:[];
+
+  const around=`(around:${radiusKm*1000},${lat},${lon})`;
+  const query=`[out:json][timeout:8];(
+    nwr["amenity"="food_bank"]${around};
+    nwr["social_facility"="food_bank"]${around};
+    nwr["social_facility"="soup_kitchen"]${around};
+    nwr["amenity"="food_sharing"]${around};
+    nwr["amenity"="soup_kitchen"]${around};
+  );out center tags;`;
+
+  const results=await Promise.all(OVERPASS.map(async url=>{
+    try{
+      const response=await timeoutFetch(url,{
+        method:"POST",
+        headers:{"Content-Type":"application/x-www-form-urlencoded;charset=UTF-8"},
+        body:"data="+encodeURIComponent(query)
+      });
+      if(!response.ok)throw new Error("Overpass HTTP "+response.status);
+      const data=await response.json();
+      if(!Array.isArray(data.elements))throw new Error("Invalid Overpass response");
+      return {ok:true,elements:data.elements};
+    }catch(_){return {ok:false,elements:[]}}
+  }));
+
+  const live=results.some(r=>r.ok);
+  // Multiple Overpass mirrors can return the same map features.
+  const unique=new Map();
+  for(const item of results.flatMap(r=>r.elements)){
+    const key=item.type+":"+item.id;
+    if(!unique.has(key))unique.set(key,item);
+  }
+  const elements=[...unique.values()].filter(item=>{
+    const p=item.center||item;
+    return Number.isFinite(p.lat)&&Number.isFinite(p.lon)&&
+      distanceKm(lat,lon,p.lat,p.lon)<=radiusKm+0.1;
+  });
+
+  if(!live&&!seeds.length){
+    return res.status(503).json({
+      error:"Live map providers are temporarily unavailable. Try again or use the official food directories below.",
+      radiusKm
+    });
+  }
+
+  return res.status(200).json({
+    elements,seeds,live,radiusKm,retrievedAt:new Date().toISOString(),
+    note:live
+      ?"Nearby mapped resources and any locally verified listings. Check hours and eligibility before traveling."
+      :"Live map search is temporarily unavailable; showing locally sourced listings only."
+  });
 }
