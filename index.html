@@ -3,11 +3,22 @@
 <head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><meta name="theme-color" content="#071009"><link rel="manifest" href="manifest.json"><link rel="stylesheet" href="style.css"><title>Pantry Goblin</title></head>
 <body>
 <main>
-<header><div class="brand"><span>🥫</span><div><h1>PANTRY GOBLIN</h1><small>an EMTizzleAI project · v1</small></div></div><div class="status">● BEAN SYSTEM ONLINE</div></header>
+<header><div class="brand"><span>🥫</span><div><h1>PANTRY GOBLIN</h1><small>an EMTizzleAI project · location-aware beta</small></div></div><div class="status">● BEAN SYSTEM ONLINE</div></header>
 <section class="hero"><div class="goblin">👹</div><div><h2>Where are we hunting?</h2><p id="lore">The goblin requires coordinates. And perhaps beans.</p></div></section>
-<section class="search"><input id="where" autocomplete="postal-code" placeholder="ZIP code, city, or address"><button id="locate">USE MY LOCATION</button><button id="hunt">FIND FOOD</button></section>
-<div class="filters"><button data-filter="open">OPEN NOW</button><button class="active" data-filter="today">TODAY</button><button data-filter="week">THIS WEEK</button></div>
-<section id="state" class="state">Enter a location or use your phone location.</section>
-<section class="haul"><div class="haul-head"><span>🥫</span><div><b>GOBLIN FOOD HAUL</b><small>Nearby resources appear here after the hunt.</small></div><span>🥫</span></div><section id="results"><div class="empty-haul">🫘 Awaiting provisions… 🫘</div></section></section>
+<section class="search"><input id="where" autocomplete="address-level2" aria-label="ZIP, city and state, or address" placeholder="ZIP, city + state, or address"><button id="locate">USE MY LOCATION</button><button id="hunt">FIND FOOD</button></section>
+<p id="location-label" class="location-label" aria-live="polite"></p>
+<section id="state" class="state" aria-live="polite">Enter a location or use your phone location. We search nearby first, not a different city by default.</section>
+<section class="haul"><div class="haul-head"><span>🥫</span><div><b>GOBLIN FOOD HAUL</b><small>Nearby leads, never guaranteed open · check before traveling</small></div><span>🥫</span></div><section id="results"><div class="empty-haul">🫘 Awaiting provisions… 🫘</div></section></section>
+<div class="more"><button id="expand" hidden>SEARCH FARTHER · 30 KM / 19 MI</button></div>
+<section class="directories">
+<h2>Not seeing a nearby pantry?</h2>
+<p>OpenStreetMap coverage varies. These U.S. services can help find additional food programs even when no map results appear.</p>
+<div class="actions">
+<a href="https://www.feedingamerica.org/need-help-find-food" target="_blank" rel="noopener noreferrer">FEEDING AMERICA · ZIP SEARCH</a>
+<a href="https://211.org/get-help/food-programs-food-benefits" target="_blank" rel="noopener noreferrer">211 · LOCAL ASSISTANCE</a>
+<a href="tel:211">CALL 211</a>
+</div>
+<small>Mapped data © OpenStreetMap contributors. Hours, eligibility and availability are not verified in real time. For locations outside the U.S., use local community services.</small>
+</section>
 <footer>GOOD FOOD. LESS WASTE. HAPPIER HUMANS. · <b>EMTizzleAI</b></footer>
 </main><script src="app.js"></script></body></html>
