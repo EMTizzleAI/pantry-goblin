@@ -129,7 +129,7 @@ async function hunt(expanded=false){
           ?{...deviceCoords,label:"your current location"}
           :await geocode(query))
       :lastSearch.origin;
-    const radiusKm=expanded?30:16;
+    const radiusKm=expanded?30:12;
     lastSearch={origin,query};
     const controller=new AbortController();
     const timer=setTimeout(()=>controller.abort(),16500);
