@@ -106,13 +106,17 @@ function normalizeSeed(seed,index){
   };
 }
 async function geocode(query){
-  const url="https://nominatim.openstreetmap.org/search?format=json&addressdetails=1&limit=5&q="+encodeURIComponent(query);
-  const response=await fetch(url,{headers:{Accept:"application/json"}});
-  if(!response.ok)throw new Error("Could not look up that place.");
-  const matches=await response.json();
-  if(!matches.length)throw new Error("Location not found. Try 'Fremont, CA' or a ZIP code.");
-  const match=matches[0];
-  return {lat:Number(match.lat),lon:Number(match.lon),label:match.display_name||query};
+  // Resolve place names on our server: in-app mobile browsers may block requests
+  // to third-party geocoders even when the visitor entered a valid city/ZIP.
+  const controller=new AbortController();
+  const timer=setTimeout(()=>controller.abort(),14500);
+  try{
+    const response=await fetch("/api/geocode?q="+encodeURIComponent(query),{signal:controller.signal});
+    const result=await response.json();
+    if(!response.ok)throw new Error(result.error||"Could not look up that place.");
+    if(!Number.isFinite(result.lat)||!Number.isFinite(result.lon))throw new Error("Location service did not return valid coordinates.");
+    return {lat:result.lat,lon:result.lon,label:result.label||query};
+  }finally{clearTimeout(timer)}
 }
 async function hunt(expanded=false){
   const query=$("#where").value.trim();
@@ -125,7 +129,7 @@ async function hunt(expanded=false){
   try {
     // A newly typed place always beats an older GPS fix.
     const origin=(!expanded||!lastSearch)
-      ?(deviceCoords&&query==="Current location"
+      ?(deviceCoords&&(query==="Current location"||query.startsWith("Approximate location:"))
           ?{...deviceCoords,label:"your current location"}
           :await geocode(query))
       :lastSearch.origin;
@@ -146,8 +150,10 @@ async function hunt(expanded=false){
     render(resources,origin,radiusKm,Boolean(data.live));
     expand.hidden=expanded;
   }catch(error){
-    say(error.name==="AbortError"?"Search timed out. Try again or use an official directory below.":error.message);
-    $("#results").innerHTML='<div class="empty-haul">Live results unavailable. Try a directory below — no invented pantry listings here.</div>';
+    say(error.name==="AbortError"?"Search timed out. Please try again or use the directory links below.":error.message);
+    const origin=lastSearch?.origin;
+    const maps=origin?'<a class="map-fallback" target="_blank" rel="noopener noreferrer" href="https://www.google.com/maps/search/?api=1&amp;query='+encodeURIComponent("food pantry near "+origin.lat+","+origin.lon)+'">SEARCH FOOD PANTRIES ON MAPS</a>':"";
+    $("#results").innerHTML='<div class="empty-haul">Live pantry listings are unavailable right now. That does not mean there is no food nearby.<br>'+maps+'<br>Try Feeding America or 211 below.</div>';
     expand.hidden=true;
   }finally{button.disabled=false}
 }
@@ -157,17 +163,53 @@ $("#where").addEventListener("input",()=>{
   lastSearch=null;
   $("#location-label").textContent="";
 });
+// In-app browsers sometimes block GPS permissions. Do not silently fail:
+// offer a clearly labeled approximate network location and a manual city search.
+async function approximateLocation(reason){
+  say(reason+" Trying a rough network location instead…");
+  try{
+    const controller=new AbortController();
+    const timer=setTimeout(()=>controller.abort(),6500);
+    let response;
+    try{response=await fetch("/api/approx-location",{signal:controller.signal})}
+    finally{clearTimeout(timer)}
+    if(!response.ok)throw new Error("Network location unavailable");
+    const data=await response.json();
+    if(!data.available)throw new Error("No network location provided");
+    const city=[data.city,data.region,data.country].filter(Boolean).join(", ");
+    if(Number.isFinite(data.lat)&&Number.isFinite(data.lon)){
+      deviceCoords={lat:data.lat,lon:data.lon};
+      $("#where").value="Approximate location: "+(city||"network estimate");
+    }else if(city){
+      deviceCoords=null;
+      $("#where").value=city;
+    }else throw new Error("No useful city");
+    lastSearch=null;
+    $("#location-label").textContent="⚠ Network-estimated location: "+(city||"approximate coordinates")+
+      ". Could be wrong on mobile networks or VPNs. Edit the city if needed.";
+    say("GPS blocked, but found a rough estimate. Check the city above, then tap FIND FOOD.");
+  }catch(_){
+    deviceCoords=null;
+    say("Location blocked by this browser. Enter 'Fremont, CA' or a ZIP, or open this page in Chrome (⋮ > Open in browser) for GPS.");
+  }
+}
 $("#locate").onclick=()=>{
-  if(!navigator.geolocation)return say("This browser cannot read location. Enter a city or ZIP.");
-  say("Asking your phone for its location…");
+  if(!navigator.geolocation){
+    approximateLocation("GPS isn't supported here.");
+    return;
+  }
+  say("Checking GPS location…");
   navigator.geolocation.getCurrentPosition(position=>{
     deviceCoords={lat:position.coords.latitude,lon:position.coords.longitude};
     lastSearch=null;
     $("#where").value="Current location";
-    $("#location-label").textContent="";
-    say("GPS acquired. Tap FIND FOOD.");
-  },()=>say("Location permission unavailable. Enter a ZIP, city or full address instead."),
-  {enableHighAccuracy:true,timeout:12000,maximumAge:60000});
+    $("#location-label").textContent="GPS location acquired.";
+    say("GPS acquired. Searching for nearby food…");
+    hunt(false);
+  },error=>{
+    const reason=error?.code===1?"Location permission denied.":"GPS unavailable.";
+    approximateLocation(reason);
+  },{enableHighAccuracy:false,timeout:10000,maximumAge:180000});
 };
 $("#hunt").onclick=()=>hunt(false);
 $("#expand").onclick=()=>hunt(true);
