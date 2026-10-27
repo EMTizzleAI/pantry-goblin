@@ -73,7 +73,7 @@ export default async function handler(req,res){
   const turns=history.filter(x=>x&&["user","assistant"].includes(x.role)&&typeof x.content==="string")
     .map(x=>({role:x.role,content:x.content.slice(0,700)}));
   const controller=new AbortController();
-  const timer=setTimeout(()=>controller.abort(),18000);
+  const timer=setTimeout(()=>controller.abort(),23000);
   try{
     const response=await fetch("https://ai-gateway.vercel.sh/v1/chat/completions",{
       method:"POST",signal:controller.signal,
@@ -81,7 +81,7 @@ export default async function handler(req,res){
       body:JSON.stringify({
         model:MODEL,
         messages:[{role:"system",content:SYSTEM},...turns,{role:"user",content:raw}],
-        max_tokens:440,temperature:0.85
+        max_tokens:720,temperature:0.85
       })
     });
     if(!response.ok){
