@@ -2,7 +2,11 @@ const $ = selector => document.querySelector(selector);
 let deviceCoords = null;
 let lastSearch = null;
 const lore = [
-  "BEAN LORE #7: The humble bean requires no API key.",
+  "GOBLIN LORE #27: THE GOBLIN REQUIRES NO API KEYS.",
+  "🥫 THE GOBLIN IS COUNTING THE BEANS...",
+  "🫘 BEAN COUNT IN PROGRESS. DO NOT DISTURB.",
+  "📡 CONSULTING THE ANCIENT PANTRY MAPS...",
+  "👹 SEARCHING THE REALM FOR FOOD...",
   "BEANS ACQUIRED (potential).",
   "No beans? Suspicious.",
   "Legumes are infrastructure.",
@@ -118,13 +122,22 @@ async function geocode(query){
     return {lat:result.lat,lon:result.lon,label:result.label||query};
   }finally{clearTimeout(timer)}
 }
+let goblinLoreTimer=null;
+function stopGoblinLore(){if(goblinLoreTimer!==null){clearInterval(goblinLoreTimer);goblinLoreTimer=null}}
+function startGoblinLore(){
+  stopGoblinLore();
+  let i=0;
+  const messages=["GOBLIN LORE #27: THE GOBLIN REQUIRES NO API KEYS.","🥫 THE GOBLIN IS COUNTING THE BEANS...","📡 CONSULTING THE ANCIENT PANTRY MAPS...","🫘 BEAN COUNT IN PROGRESS. DO NOT DISTURB.","👹 GOBLIN IS SEARCHING FOR FOOD..."];
+  const tick=()=>{const line=messages[i++%messages.length];$("#state").textContent=line;$("#lore").textContent=line};
+  tick();goblinLoreTimer=setInterval(tick,1700);
+}
 async function hunt(expanded=false){
   const query=$("#where").value.trim();
   if(!query&&!deviceCoords)return say("Enter a city, state, ZIP or use your location.");
   const button=$("#hunt"),expand=$("#expand");
   button.disabled=true;
   expand.hidden=true;
-  say("Goblin is searching close to your location…");
+  startGoblinLore();
   $("#results").innerHTML='<div class="empty-haul">🫘 Hunting for nearby beans…</div>';
   try {
     // A newly typed place always beats an older GPS fix.
@@ -147,15 +160,17 @@ async function hunt(expanded=false){
     if(!response.ok)throw new Error(data.error||"Food search service is temporarily unavailable.");
     const resources=[...(data.elements||[]),...(data.seeds||[]).map(normalizeSeed)];
     $("#location-label").textContent="Searching around: "+origin.label;
+    stopGoblinLore();
     render(resources,origin,radiusKm,Boolean(data.live));
     expand.hidden=expanded;
   }catch(error){
+    stopGoblinLore();
     say(error.name==="AbortError"?"Search timed out. Please try again or use the directory links below.":error.message);
     const origin=lastSearch?.origin;
     const maps=origin?'<a class="map-fallback" target="_blank" rel="noopener noreferrer" href="https://www.google.com/maps/search/?api=1&amp;query='+encodeURIComponent("food pantry near "+origin.lat+","+origin.lon)+'">SEARCH FOOD PANTRIES ON MAPS</a>':"";
     $("#results").innerHTML='<div class="empty-haul">Live pantry listings are unavailable right now. That does not mean there is no food nearby.<br>'+maps+'<br>Try Feeding America or 211 below.</div>';
     expand.hidden=true;
-  }finally{button.disabled=false}
+  }finally{stopGoblinLore();button.disabled=false}
 }
 
 $("#where").addEventListener("input",()=>{
