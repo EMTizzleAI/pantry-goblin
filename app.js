@@ -122,13 +122,36 @@ async function geocode(query){
     return {lat:result.lat,lon:result.lon,label:result.label||query};
   }finally{clearTimeout(timer)}
 }
+// Keep the goblin's thoughts directly beneath the search button.
+function mountGoblinThoughtBox(){
+  const button=$("#hunt");
+  if(!button||document.getElementById("goblin-thought-box"))return;
+  const box=document.createElement("div");
+  box.id="goblin-thought-box";
+  box.setAttribute("role","status");
+  box.setAttribute("aria-live","polite");
+  box.innerHTML='<span class="goblin-hourglass" aria-hidden="true">⏳</span><span id="goblin-thought-text">👹 The Goblin is contemplating beans.</span>';
+  button.insertAdjacentElement("afterend",box);
+  const style=document.createElement("style");
+  style.textContent=`#goblin-thought-box{display:flex;align-items:center;gap:12px;margin:14px 0;padding:14px 16px;border:1px solid #b5ec61;border-radius:14px;background:rgba(181,236,97,.07);color:#e5f7c6;font-weight:650;line-height:1.5;min-height:58px}#goblin-thought-box .goblin-hourglass{display:inline-block;font-size:22px;flex-shrink:0;transform-origin:center}#goblin-thought-box.is-searching .goblin-hourglass{animation:goblin-flip 1.5s ease-in-out infinite}@keyframes goblin-flip{0%,20%{transform:rotate(0)}55%,85%{transform:rotate(180deg)}100%{transform:rotate(360deg)}}@media(prefers-reduced-motion:reduce){#goblin-thought-box .goblin-hourglass{animation:none!important}}`;
+  document.head.appendChild(style);
+}
+function goblinThought(message,searching=false){
+  mountGoblinThoughtBox();
+  const box=document.getElementById("goblin-thought-box");
+  if(!box)return;
+  box.classList.toggle("is-searching",searching);
+  box.querySelector(".goblin-hourglass").textContent=searching?"⏳":"🥫";
+  box.querySelector("#goblin-thought-text").textContent=message;
+}
+mountGoblinThoughtBox();
 let goblinLoreTimer=null;
 function stopGoblinLore(){if(goblinLoreTimer!==null){clearInterval(goblinLoreTimer);goblinLoreTimer=null}}
 function startGoblinLore(){
   stopGoblinLore();
   let i=0;
   const messages=["GOBLIN LORE #27: THE GOBLIN REQUIRES NO API KEYS.","🥫 THE GOBLIN IS COUNTING THE BEANS...","📡 CONSULTING THE ANCIENT PANTRY MAPS...","🫘 BEAN COUNT IN PROGRESS. DO NOT DISTURB.","👹 GOBLIN IS SEARCHING FOR FOOD..."];
-  const tick=()=>{const line=messages[i++%messages.length];$("#state").textContent=line;$("#lore").textContent=line};
+  const tick=()=>{const line=messages[i++%messages.length];$("#state").textContent=line;$("#lore").textContent=line;goblinThought(line,true)};
   tick();goblinLoreTimer=setInterval(tick,1700);
 }
 async function hunt(expanded=false){
@@ -162,9 +185,11 @@ async function hunt(expanded=false){
     $("#location-label").textContent="Searching around: "+origin.label;
     stopGoblinLore();
     render(resources,origin,radiusKm,Boolean(data.live));
+    goblinThought(resources.length?"🥫 BEAN HUNT COMPLETE! Pantry leads are below.":"🥫 BEAN HUNT COMPLETE! No mapped listings found.");
     expand.hidden=expanded;
   }catch(error){
     stopGoblinLore();
+    goblinThought("👹 The Goblin could not finish the search. Try again.");
     say(error.name==="AbortError"?"Search timed out. Please try again or use the directory links below.":error.message);
     const origin=lastSearch?.origin;
     const maps=origin?'<a class="map-fallback" target="_blank" rel="noopener noreferrer" href="https://www.google.com/maps/search/?api=1&amp;query='+encodeURIComponent("food pantry near "+origin.lat+","+origin.lon)+'">SEARCH FOOD PANTRIES ON MAPS</a>':"";
