@@ -2,6 +2,16 @@
 (()=>{'use strict';
 const button=document.getElementById('find'),city=document.getElementById('city'),links=document.getElementById('search-links'),thought=document.getElementById('goblin-thought-box'),words=document.getElementById('goblin-thought-text'),hour=document.getElementById('goblin-hourglass');
 if(!button||!city||!links)return;
+// A friendly, dismissible note from the Goblin, shown once per browser session.
+const note=document.createElement('aside');
+note.id='goblin-kindness-note';note.setAttribute('aria-label','A note from the Goblin');
+note.style.cssText='position:fixed;z-index:9999;bottom:18px;left:50%;transform:translateX(-50%);width:min(92vw,440px);padding:19px 46px 19px 19px;background:#231b2d;border:2px solid #c8ff6d;border-radius:19px;box-shadow:0 12px 50px #000a;color:#fff;font-size:15px;line-height:1.55';
+const heading=document.createElement('strong');heading.textContent='👹 A little note from the Goblin';heading.style.cssText='display:block;color:#c8ff6d;font-size:17px;margin-bottom:8px';
+const message=document.createElement('p');message.textContent="Hey, perfectly normal people across America are lining up at food banks. There's nothing embarrassing about getting the food you need. Save your money for gas, rent, bills, and everything else life throws at you. That's what food banks are for. Now go get those beans! 🫘💗";message.style.margin='0';
+const close=document.createElement('button');close.type='button';close.textContent='×';close.setAttribute('aria-label','Dismiss Goblin note');close.style.cssText='position:absolute;top:7px;right:12px;background:transparent;border:0;color:#fff;font-size:29px;cursor:pointer;min-width:35px;min-height:40px';
+close.addEventListener('click',()=>{note.remove();try{sessionStorage.setItem('goblin-note-dismissed','yes')}catch(_){}});
+note.append(heading,message,close);
+try{if(sessionStorage.getItem('goblin-note-dismissed')!=='yes')document.body.append(note)}catch(_){document.body.append(note)}
 // Keep the pantry search visible immediately above the email-preparation fields.
 const emailField=document.querySelector('label[for="pantry"]');
 const searchArea=document.createElement('section');searchArea.id='goblin-search-area';searchArea.setAttribute('aria-label','Pantry search results');
