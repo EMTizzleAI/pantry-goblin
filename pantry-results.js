@@ -2,6 +2,14 @@
 (()=>{'use strict';
 const button=document.getElementById('find'),city=document.getElementById('city'),links=document.getElementById('search-links'),thought=document.getElementById('goblin-thought-box'),words=document.getElementById('goblin-thought-text'),hour=document.getElementById('goblin-hourglass');
 if(!button||!city||!links)return;
+// Keep the pantry search visible immediately above the email-preparation fields.
+const emailField=document.querySelector('label[for="pantry"]');
+const searchArea=document.createElement('section');searchArea.id='goblin-search-area';searchArea.setAttribute('aria-label','Pantry search results');
+searchArea.style.cssText='margin:22px 0;padding:18px;border:1px solid #c8ff6d;border-radius:17px;background:#16201c;color:#f9f7ff';
+searchArea.innerHTML='<h3 style="margin:0 0 8px;color:#c8ff6d">🥫 Pantry search results</h3><p style="margin:8px 0 12px">Find nearby food pantries here, without leaving Pantry Goblin.</p><div id="goblin-real-results" aria-live="polite">👹 Enter a city or ZIP above and tap FIND FOOD PANTRIES.</div>';
+if(emailField)emailField.insertAdjacentElement('beforebegin',searchArea);
+const mission=document.querySelector('aside.card');
+if(mission){const steps=mission.querySelectorAll('.step');const targets=[()=>{city.scrollIntoView({behavior:'smooth',block:'center'});city.focus()},()=>{document.getElementById('pantry')?.scrollIntoView({behavior:'smooth',block:'center'});document.getElementById('pantry')?.focus()},()=>{document.getElementById('draft')?.click()},()=>{document.getElementById('tickle-btn')?.click()}];steps.forEach((step,i)=>{if(!targets[i])return;step.setAttribute('role','button');step.setAttribute('tabindex','0');step.style.cursor='pointer';step.addEventListener('click',targets[i]);step.addEventListener('keydown',e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();targets[i]()}})})}
 let request=0,timer=null;
 const messages=['🫘 THE GOBLIN IS COUNTING THE BEANS...','📡 CONSULTING THE ANCIENT PANTRY MAPS...','👹 INVESTIGATING LEGUME ACTIVITY...','⏳ CHECKING REAL PANTRY LISTINGS...'];
 const safeUrl=value=>{try{const u=new URL(value);return /^https?:$/.test(u.protocol)?u.href:null}catch{return null}};
